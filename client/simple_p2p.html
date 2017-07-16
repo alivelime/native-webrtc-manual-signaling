@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>WebRTC サンプル</title>
+  <style>
+  .textbox {
+    width: 480px;
+    height: 320px;
+  }
+  </style>
+</head>
+<body>
+  <div>
+    <input type="button" id="btnConnect" value="start" onclick="start()" />
+    <input type="button" id="createOffer" value="create offer" onclick="createOffer()" />
+    <input type="button" id="receiveRmoteAnswer" value="Receive Remote Answer" onclick="receiveRemoteAnswer()" />
+    <input type="button" id="receiveRmoteOffer" value="Receive Remote Offer" onclick="receiveRemoteOffer()" />
+  </div>
+  <div>
+    <video id="selfView" width="200" height="150" autoplay></video>
+    <video id="remoteView" width="200" height="150" autoplay></video>
+  </div>
+  <div>
+    <textarea class="textbox" id="self-offer">1.self offer</textarea>
+    <textarea class="textbox" id="remote-offer">3.remote offer</textarea>
+  </div>
+  <div>
+    <textarea class="textbox" id="self-answer">4.self answer</textarea>
+    <textarea class="textbox" id="remote-answer">2.remote answer</textarea>
+  </div>
+  <span id="state"></span>
+  <script>
+    navigator.getUserMedia = navigator.getUserMedia || 
+                             navigator.webkitGetUserMedia || 
+                             navigator.mozGetUserMedia;
+    window.RTCPeerConnection = window.RTCPeerConnection ||
+                               window.webkitRTCPeerConnection ||
+                               window.mozRTCPeerConnection;
+    window.RTCSessionDescription = window.RTCSessionDescription ||
+                                   window.mozRTCSessionDescription;
+    window.RTCIceCandidate = window.RTCIceCandidate || 
+                             window.mozRTCIceCandidate;
+
+    // var signalingChannel = new WebSocket('ws://192.168.0.2:9000');
+    var pc;
+		let selfOffer = document.getElementById('self-offer');
+		let selfAnswer = document.getElementById('self-answer');
+		let remoteOffer = document.getElementById('remote-offer');
+		let remoteAnswer = document.getElementById('remote-answer');
+
+    // call start() to initiate
+    function start() {
+      pc = new RTCPeerConnection({ "iceServers": [
+      {urls:'stun:35.189.141.152:3478'}, {urls:'turn:35.189.141.152:3478?transport=tcp', username:'aisatsu', credential:'aisatsu'}
+        ]}
+      );
+
+      // send any ice candidates to the other peer
+      pc.onicecandidate = function (evt) {
+        if (evt.candidate)
+         return; // signalingChannel.send(JSON.stringify({ "candidate": evt.candidate }));
+
+       selfOffer.value = pc.localDescription.sdp;
+       selfOffer.focus();
+       selfOffer.select();
+      };
+
+      // let the "negotiationneeded" event trigger offer generation
+      pc.onnegotiationneeded = function () {
+      }
+
+      // once remote stream arrives, show it in the remote video element
+      pc.onaddstream = function (evt) {
+        remoteView.src = URL.createObjectURL(evt.stream);
+      };
+
+      // get a local stream, show it in a self-view and add it to be sent
+      navigator.getUserMedia({ "audio": false, "video": true }, function (stream) {
+        selfView.srcObject = stream;
+        pc.addStream(stream);
+      }, logError);
+    }
+
+    function createOffer() {
+        pc.createOffer(localDescCreated, logError);
+    }
+
+    function localDescCreated(desc) {
+      pc.setLocalDescription(desc, function () {
+        console.log(desc);
+        if (desc.type === "offer") {
+          selfOffer.value = desc.sdp;
+          selfOffer.focus();
+          selfOffer.select();
+        } else if (desc.type === "answer") {
+          selfAnswer.value = desc.sdp;
+          selfAnswer.focus();
+          selfAnswer.select();
+        }
+
+        // signalingChannel.send(JSON.stringify({ "sdp": pc.localDescription }));
+      }, logError);
+    }
+
+    function receiveRemoteAnswer() {
+      pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: remoteAnswer.value}), function () {
+      }, logError);
+	  }
+
+    function receiveRemoteOffer() {
+      pc.setRemoteDescription(new RTCSessionDescription({type: 'offer', sdp: remoteOffer.value}), function () {
+        // if we received an offer, we need to answer
+        if (pc.remoteDescription.type == "offer")
+          pc.createAnswer(localDescCreated, logError);
+      }, logError);
+    }
+
+/*
+    signalingChannel.onmessage = function (evt) {
+      if (!pc)
+        start();
+
+      var message = JSON.parse(evt.data);
+      if (message.sdp)
+        pc.setRemoteDescription(new RTCSessionDescription(message.sdp), function () {
+          // if we received an offer, we need to answer
+          if (pc.remoteDescription.type == "offer")
+            pc.createAnswer(localDescCreated, logError);
+        }, logError);
+      else
+        pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+    };
+*/
+
+    function logError(error) {
+      console.log(error.name + ": " + error.message);
+    }
+  </script>
+</body>
+</html>

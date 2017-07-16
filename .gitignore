@@ -1,0 +1,4 @@
+*.o
+*.dwo
+.ninja_deps
+.ninja_log
